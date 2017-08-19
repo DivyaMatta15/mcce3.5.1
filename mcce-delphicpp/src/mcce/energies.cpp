@@ -545,7 +545,7 @@ int conf_energies(int kr, int kc, PROT prot)
 			else {
 				// RUN DELPHI CALCULATIONS
 				if (env.delphi_sys_call) {
-					printf("Using sys call \n");
+					//printf("Using sys call \n");
 					// center of grids is given in fort 27
 					fp = fopen("fort.27", "w");
 					fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
@@ -697,7 +697,7 @@ int conf_energies(int kr, int kc, PROT prot)
 					}
 					remove("ARCDAT");
 				}else{
-					printf("Using integrated delphi\n");
+					//printf("Using integrated delphi\n");
 					fp2 = fopen("apbs.pqr", "w");
 					if (write_pqr(fp2)) {
 						printf("   FATAL: Cannot write a pqr file in conf_energies()\n");
