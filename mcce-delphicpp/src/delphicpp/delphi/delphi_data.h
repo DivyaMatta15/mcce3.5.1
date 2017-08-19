@@ -115,8 +115,9 @@ class CDelphiData:virtual public IDataContainer
          if (5 > pddm->iGrid || 2000 < pddm->iGrid) COutOfRange_GSIZE warning(pddm->iGrid);
 
          // equivalent to scale = value in the parameter file
-         pddm->fScale = (mcce_data->scale+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1);
+         pddm->fScale = mcce_data->scale;//(mcce_data->scale+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1);
          if (0.0 >= pddm->fScale || 40.0 <= pddm->fScale) COutofRange_SCALE warning(pddm->fScale);
+          printf("mcce_data->scale: %f\n",pddm->fScale);
 
          // equivalent to in(modpdb,file=\"apbs.pqr\",format=pqr) in the parameter file
          pddm->strPdbFile = mcce_data->pdbfile;
@@ -145,24 +146,36 @@ class CDelphiData:virtual public IDataContainer
          // equivalent to out(frc,file="filename") in the parameter file
          pddm->bSiteOut = true; 
          pddm->strFrcFile = mcce_data->frcfile;
+         //pddm->strFrciFile = mcce_data->frcfile_in;
+
+         
 
          // equivalent to out(phi,file="filename") in the parameter file
          pddm->bPhimapOut = true; 
-         pddm->strPhiFile = mcce_data->phifile;
          pddm->iPhiFormatOut = 5;
+         //pddm->strPhiFile = mcce_data->phifile;
+         //pddm->strPhiFile = mcce_data->phifile_in;
+         
 
          // equivalent to bndcon = value in the parameter file
          pddm->iBndyType = mcce_data->bndcon;
          if (3 == mcce_data->bndcon)
          {
             // equivalent to in(phi,file="run.phi") in the parameter file
-            //pddm->vctfPhiMap_Pre  = mcce_data->phimap;
-            pddm->vctfPhiMap  = mcce_data->phimap;
-            pddm->fScale      = mcce_data->scale;
-            pddm->gfBoxCenter = mcce_data->oldmid;
-            pddm->iGrid       = mcce_data->igrid; 
+            printf("Here is the pddm->vctfPhiMap ==============\n");
+            pddm->vctfPhiMap  = mcce_data->phimap3;
+            for (std::vector<delphi_real>::const_iterator ii = pddm->vctfPhiMap.begin(); ii != pddm->vctfPhiMap.end(); ++ii){
+              std::cout << *ii << ' ';
+              //printf("pddm->vctfPhiMap: %f\n", *ii);
+            }
+            pddm->fScale      = mcce_data->scale1;
+            pddm->gfBoxCenter = mcce_data->oldmid1;
+            pddm->iGrid       = mcce_data->igrid1;
+            //pddm->strPhiiFile = mcce_data->phifile_in;
+            //pddm->strFrciFile = mcce_data->frcfile_in;
          }
           
+         
 
          // equivalent to center(x,y,z) in the parameter file
          //pddm->gfOffCenter.nX = mcce_data->center[0]; 
@@ -275,7 +288,7 @@ class CDelphiData:virtual public IDataContainer
         
         pddm->strFrciFile = prime_data->strFRCIn;
         
-        pddm->strFrcFile = prime_data->strFRCOut;
+        pddm->strFrcFile = prime_data->strFRCOut; 
         
         
         

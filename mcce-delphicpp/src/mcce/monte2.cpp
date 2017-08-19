@@ -446,7 +446,7 @@ int monte2_load_pairwise(PROT prot) {
     EMATRIX ematrix; // Salah added on Dec. 2015
 	// Salah added on Dec. 2015 =====
 	ematrix.n = 0;  
-    if (load_energies(&ematrix, ".",0)<0) {
+    if (load_energies(&ematrix, ".", 0)<0) {
         printf("   File %s not found\n", ENERGY_TABLE);
         return USERERR;
     }

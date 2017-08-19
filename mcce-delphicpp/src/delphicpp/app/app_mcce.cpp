@@ -46,13 +46,13 @@ class StreamRedirector
 /**
  * single delphi run, the same as app_delphi.cpp
  */
-bool runDelphi(SMCCE * mcce_data)
+bool runDelphi(SMCCE * mcce_data, int j)
 {
     /*
     * bool values are inserted/extracted by their textual representation: either true or false, instead of integral values.
     * This flag can be unset with the noboolalpha manipulator.
     */
-
+    char FileName[80];
 
     cout << boolalpha;
 
@@ -78,10 +78,12 @@ bool runDelphi(SMCCE * mcce_data)
       //********************************************************************************//
       
       // This line is to find all the param that are pasted to runDelphi
-      //pDataContainer->showMap("test_delphicpp_beforesurf.dat");
+      pDataContainer->showMap("test_delphicpp_beforesurf.dat");
       unique_ptr<IAbstractModule> pSpace( new CDelphiSpace(pDataContainer,pTimer) );
       pSpace->run();
       pSpace.reset(); // !!! need to be changed to pSpace.reset();
+      pDataContainer->showMap("showmap_aftersuf.dat");
+
       //---------- print out results after constructing molecular surfaces
       cout << endl;
 
@@ -113,10 +115,15 @@ bool runDelphi(SMCCE * mcce_data)
          unique_ptr<CDelphiFastSOR> pSolver( new CDelphiFastSOR(pDataContainer,pTimer) );
 
          if (3 == mcce_data->bndcon) {
+           mcce_data->phimap3    = mcce_data->phimap;
+           //mcce_data->igrid1   = pDataContainer->getKey_Val<delphi_integer>("igrid");
+           //mcce_data->scale1   = pDataContainer->getKey_Val<delphi_real>("scale");
+           //mcce_data->oldmid1  = pDataContainer->getKey_Val< SGrid<delphi_real> >("oldmid");
           pSolver->getMCCE(mcce_data);
          }
          pSolver->run();
          pSolver.reset(); 
+         //pDataContainer->showMap("showmap_afteritr.dat");
          //********************************************************************************//
          //                                                                                //
          //          realize an object of CDelphiEnergy class to calculate energys         //
@@ -125,6 +132,7 @@ bool runDelphi(SMCCE * mcce_data)
          unique_ptr<IAbstractModule> pEnergy( new CDelphiEnergy(pDataContainer,pTimer) );
          pEnergy->run();
          pEnergy.reset();
+         //pDataContainer->showMap("showmap_aftereng.dat");
          //********************************************************************************//
          //                                                                                //
          //               realize an object of CSite class to write site info              //
@@ -150,19 +158,34 @@ bool runDelphi(SMCCE * mcce_data)
             pTimer.reset();
             return false;
          }
+         // This (mcce_data->phiv) is the same as the grid pot. in the .frc files
          mcce_data->phiv = pSite->mcce_phiv;
+         // For displaying the grid pot.
+         /*for (std::vector<delphi_real>::const_iterator i = mcce_data->phiv.begin(); i != mcce_data->phiv.end(); ++i){
+            std::cout << *i << ' ';
+            printf("*i: %f\n", *i);
+          }*/
          pSite.reset();
 
          /*
           * equivalent to out(phi,file="filename") in the parameter file
           */
-         //if(pDataContainer->getKey_constRef<int>("ibctyp") == 2)
-         //{
-         mcce_data->phimap  = pDataContainer->getKey_Val< vector<delphi_real> >("phimap");
-         mcce_data->scale   = pDataContainer->getKey_Val<delphi_real>("scale");
-         mcce_data->oldmid  = pDataContainer->getKey_Val< SGrid<delphi_real> >("oldmid");
-         mcce_data->igrid   = pDataContainer->getKey_Val<delphi_integer>("igrid");
-         //}
+         if(pDataContainer->getKey_constRef<int>("ibctyp") == 2)
+         {
+           mcce_data->phimap   = pDataContainer->getKey_Val< vector<delphi_real> >("phimap");
+           mcce_data->igrid1   = pDataContainer->getKey_Val<delphi_integer>("igrid");
+           mcce_data->scale1   = pDataContainer->getKey_Val<delphi_real>("scale");
+           mcce_data->oldmid1  = pDataContainer->getKey_Val< SGrid<delphi_real> >("oldmid");
+         }
+         
+
+         printf("=========== mcce_data->phimap \n");
+         for (std::vector<delphi_real>::const_iterator ii = mcce_data->phimap.begin(); ii != mcce_data->phimap.end(); ++ii){
+            std::cout << *ii << ' ';
+            //printf("mcce_data->phimap: %f\n", *ii);
+          }
+         sprintf(FileName,"%s%02d","test_phimap",j);
+           pDataContainer->showMap(FileName);
          /*
           * equivalent to energy(s) in the parameter file
           */
@@ -193,9 +216,10 @@ bool runDelphi(SMCCE * mcce_data)
  */
 bool conf_energies_delphi(SMCCE * mcce_data)
 {
-   int notpassed = 1;
+   int  notpassed = 1;
    bool bDelPhiReturn = false;
    char FileName[80];
+   int j;
    while(notpassed)
    {
       if (2 > mcce_data->n_retry)
@@ -215,20 +239,20 @@ bool conf_energies_delphi(SMCCE * mcce_data)
          /*
           * save log and errors in the same file
           */
-         //mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1); 
+         mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1); 
 
 
          sprintf(FileName,"%s%02d.log","delphi",1);
          ofstream logFile(FileName);
          StreamRedirector redirect_cout(cout,logFile.rdbuf());
          StreamRedirector redirect_cerr(cerr,logFile.rdbuf());
-         bDelPhiReturn = runDelphi(mcce_data);
+         bDelPhiReturn = runDelphi(mcce_data, 1);
       }
       else if (2 <= mcce_data->n_retry && 3 > mcce_data->n_retry)
       {
          //mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1); 
          printf("   Trying changing scale on trial %d\n",mcce_data->n_retry);
-         bDelPhiReturn = runDelphi(mcce_data);
+         bDelPhiReturn = runDelphi(mcce_data, 1);
       }
       else
       {
@@ -238,7 +262,7 @@ bool conf_energies_delphi(SMCCE * mcce_data)
 
       if (false == bDelPhiReturn) 
       {
-         printf("\n   1WARNING: Delphi failed at focusing depth %d of %s, retry\n", 1, mcce_data->uniqID.c_str());
+         printf("\n   WARNING: Delphi failed at focusing depth %d of %s, retry\n", 1, mcce_data->uniqID.c_str());
          mcce_data->n_retry++;
          mcce_data->del_err = 1;
          continue;
@@ -248,21 +272,29 @@ bool conf_energies_delphi(SMCCE * mcce_data)
        * prepare for focusing runs
        */
       if (1 < mcce_data->del_runs) {
+        printf("Salah 1\n");
         mcce_data->bndcon = 3;
-
       }
 
+      j = 1;
       for (int i = 1; i < mcce_data->del_runs; i++)
       {
          /*
           * update mcce_data to prepare for focusing runs
-          */
-         //mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1-i);
-         mcce_data->del_runs -= i;
-         sprintf(FileName,"%s%02d.txt","run",i+1);
-         mcce_data->phifile = FileName;
-         sprintf(FileName,"%s%02d.frc","run",i+1);
+          */   
+
+         mcce_data->scale1   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1-i);
+         j = j + 1;
+         //mcce_data->del_runs -= i;
+         //sprintf(FileName,"%s%02d.phi","run",i+1);
+         //mcce_data->phifile = FileName;
+         sprintf(FileName,"%s%02d.frc","pwrun",i+1);
          mcce_data->frcfile = FileName;
+
+         //sprintf(FileName,"%s%02d_in.phi","run",i);
+         //mcce_data->phifile_in   = FileName;
+         sprintf(FileName,"%s%02d_in.frc","run",i);
+         mcce_data->frcfile_in = FileName;
 
 
          
@@ -281,14 +313,15 @@ bool conf_energies_delphi(SMCCE * mcce_data)
             StreamRedirector redirect_cerr(cerr,errFile.rdbuf());
             */
 
-            /*
+            /* 
              * save log and errors in the same file
              */
+         
             sprintf(FileName,"%s%02d.log","delphi",i+1);
             ofstream logFile(FileName);
             StreamRedirector redirect_cout(cout,logFile.rdbuf());
             StreamRedirector redirect_cerr(cerr,logFile.rdbuf());
-            bDelPhiReturn = runDelphi(mcce_data);
+            bDelPhiReturn = runDelphi(mcce_data, i+1);
          }
          else
          {
@@ -298,7 +331,7 @@ bool conf_energies_delphi(SMCCE * mcce_data)
 
          if (false == bDelPhiReturn) 
          {
-            printf("\n  2WARNING: Delphi failed at focusing depth %d of %s, retry\n",i+1,mcce_data->uniqID.c_str());
+            printf("\n  WARNING: Delphi failed at focusing depth %d of %s, retry\n",i+1,mcce_data->uniqID.c_str());
             mcce_data->n_retry++;
             mcce_data->del_err = 1;
             break;
@@ -324,6 +357,7 @@ bool conf_rxn_delphi(SMCCE * mcce_data,float rxn[], int jjj)
    char sbuff[MAXCHAR_LINE];
    //float rxn[100]; /*rxn at focusing runs*/
    float rxn_min, rxn_res_min;
+   int j;
 
    /*
     * save log and errors in the same file
@@ -333,8 +367,8 @@ bool conf_rxn_delphi(SMCCE * mcce_data,float rxn[], int jjj)
    ofstream logFile(FileName);
    StreamRedirector redirect_cout(cout,logFile.rdbuf());
    StreamRedirector redirect_cerr(cerr,logFile.rdbuf());
-   //mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1); 
-   bDelPhiReturn = runDelphi(mcce_data);
+   mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1); 
+   bDelPhiReturn = runDelphi(mcce_data, 10);
 
    if (false == bDelPhiReturn)
    {
@@ -348,19 +382,25 @@ bool conf_rxn_delphi(SMCCE * mcce_data,float rxn[], int jjj)
     * prepare for focusing runs
     */
    mcce_data->bndcon = 3;
-
+   j = 1;
    for (int i = 1; i < mcce_data->del_runs; i++)
    {
       /*
        * update mcce_data to prepare for focusing runs
        */
-      //mcce_data->scale   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1-i); 
-      mcce_data->del_runs -= i;
+      mcce_data->scale1   = (env.grids_per_ang+0.01*(float)mcce_data->n_retry)/pow(2,mcce_data->del_runs-1-i); 
+      //mcce_data->del_runs -= i;
+      j = j + 1;
       
-      sprintf(FileName,"%s%02d.txt","run",i+1);
-      mcce_data->phifile = FileName;
+      //sprintf(FileName,"%s%02d.phi","run",i+1);
+      //mcce_data->phifile = FileName;
       sprintf(FileName,"%s%02d.frc","run",i+1);
       mcce_data->frcfile = FileName;
+
+      //sprintf(FileName,"%s%02d_in.phi","run",i+1);
+      //mcce_data->phifile_in   = FileName;
+      sprintf(FileName,"%s%02d_in.frc","run",i+1);
+      mcce_data->frcfile_in = FileName;
 
       /*
        * save log and errors in the same file
@@ -370,7 +410,7 @@ bool conf_rxn_delphi(SMCCE * mcce_data,float rxn[], int jjj)
       StreamRedirector redirect_cout(cout,logFile.rdbuf());
       StreamRedirector redirect_cerr(cerr,logFile.rdbuf());
 
-      bDelPhiReturn = runDelphi(mcce_data);
+      bDelPhiReturn = runDelphi(mcce_data, i+11);
 
       if (false == bDelPhiReturn)
       {

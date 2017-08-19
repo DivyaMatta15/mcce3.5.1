@@ -72,6 +72,8 @@ typedef struct {
  */
 typedef struct {
    //------- IN
+   int ntimes;
+   
    delphi_integer gsize;
    float grids_per_ang;
    int del_runs;
@@ -89,13 +91,22 @@ typedef struct {
    string frcfile;
    string phifile;
    string uniqID;
+   vector<string> strAtomDes;
+   vector<delphi_real> vecGridPot;
+   vector<delphi_real> vecSiteCrg;
+   delphi_real scale; 
+   SGrid<delphi_real> oldmid;
+   //delphi_integer igrid;
    
 
    //-------- INTERMEDIATE
    vector<delphi_real> phimap;
-   delphi_real scale;
-   SGrid<delphi_real> oldmid;
-   delphi_integer igrid;
+   vector<delphi_real> phimap3;
+   delphi_real scale1;
+   SGrid<delphi_real> oldmid1;
+   delphi_integer igrid1;
+   string frcfile_in;
+   string phifile_in;
 
    //-------- OUT
    delphi_real ergs;

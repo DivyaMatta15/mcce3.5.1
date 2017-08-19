@@ -580,10 +580,11 @@ int write_energies(EMATRIX *ematrix, char *dir, int verbose)
     }
     fclose(fp2); fclose(fp);
     
-    /*sprintf(fname, "%s/%s", dir, PW_DIR);
-    if (extract_matrix(ematrix, fname,0)) return USERERR;*/
+    sprintf(fname, "%s/%s", dir, PW_DIR);
+    if (extract_matrix(ematrix, fname,0)) return USERERR;
 
-    // write head3.lst 
+    // write head3.lst
+    
     sprintf(fname, "%s/%s", dir, FN_CONFLIST3);
     if (!(fp = fopen(fname, "w"))) {
         printf("   Can not open file %s to write. Abort ...\n", fname);

@@ -6,7 +6,7 @@
 
 /*--- Constants ---*/
 /* Constants for geometry transformation recorder */
-#define VERSION       "MCCE3.5"
+#define VERSION       "MCCE2.5.1"
 #define USERERR -1
 #define MAXCHAR_LINE 320
 #define DUMMY_GDBM   "~temp.dbm.XXXXXX"
@@ -764,7 +764,8 @@ typedef struct {
     int do_corrections; /*boundary corrections switch*/
     
     int ignore_input_h; /*toggle on to disregard all hydrogens in input structure*/
-    
+    // Step 3 variables
+    int delphi_sys_call;
     // Step 5 variables 
     char yifan_pka;
     char mfe_pka;

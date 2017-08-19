@@ -122,6 +122,7 @@ int get_env()
     env.grids_delphi = 65;
     env.grids_per_ang = 2.0;
     env.radius_probe = 1.4;
+    env.delphi_sys_call = 1;
     // Step 4
     env.monte_temp = 298.15;
     env.monte_flips = 3;
@@ -954,12 +955,19 @@ int get_env()
         else if (strstr(sbuff, "(DELPHI_POTENTIAL_EXE)")) {
             strcpy(env.delphi_potential_exe, strtok(sbuff, " "));
         }
-        else if (strstr(sbuff, "(USE_OLD_DELPHI)")) {
+        else if (strstr(sbuff, "(DELPHI_SYS_CALL)")) {
+            str1 = strtok(sbuff, " ");
+            if (str1[0] == 'f' || str1[0] == 'F') {
+                env.delphi_sys_call = 0;
+            }
+            else env.delphi_sys_call = 1;
+        }
+        else if (strstr(sbuff, "(ONLY_BACKBONE)")) {
             str1 = strtok(sbuff, " ");
             if (str1[0] == 't' || str1[0] == 'T') {
-                env.use_old_delphi = 1;
+                env.only_backbone = 1;
             }
-            else env.use_old_delphi = 0;
+            else env.only_backbone = 0;
         }
     }
 

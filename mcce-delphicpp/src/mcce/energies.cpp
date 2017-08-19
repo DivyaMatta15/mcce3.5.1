@@ -1,3 +1,4 @@
+//#include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +9,7 @@
 #include <unistd.h>
 #include <zlib.h>
 #include "mcce.h"
+
 
 #include "../delphicpp/delphi/delphi_constants.h"
 
@@ -69,6 +71,9 @@ int find_atom(VECTOR v, int counter);
 int delphi_depth();
 void write_fort15();
 int define_boundary_res(PROT prot, int kr, int kc);
+
+/* hash table to get rid of tpl files */
+//GHashTable * rxn_per_conf;
 
 /* apbs */
 int write_pqr(FILE *pqr);
@@ -188,22 +193,7 @@ int energies()
 		write_fort15();
 	}
 
-	/* DEBUG
-   int k;
-   for (i=0; i<prot.n_res; i++) {
-	  for (j=0; j<prot.res[i].n_conf; j++) {
-		 for (k=0; k<prot.res[i].conf[j].n_atom; k++) {
-			if (!prot.res[i].conf[j].atom[k].on) continue;
-			printf ("%5d%8.3f%8.3f%8.3f%8.3f%8.3f\n", prot.res[i].conf[j].atom[k].serial,
-													  ele_bound.unf[prot.res[i].conf[j].atom[k].serial].x,
-													  ele_bound.unf[prot.res[i].conf[j].atom[k].serial].y,
-													  ele_bound.unf[prot.res[i].conf[j].atom[k].serial].z,
-													  ele_bound.unf[prot.res[i].conf[j].atom[k].serial].rad,
-													  ele_bound.unf[prot.res[i].conf[j].atom[k].serial].crg);
-		 }
-	  }
-   }
-	 */
+	
 
 	/* Compute self vdw, bkb vdw. torsion, epol, pairwise vdw and pairwise electrostatic energy
 	 * of each conformer and save to a file.
@@ -318,7 +308,7 @@ int energies()
 			counter++;
 			nowA = time(NULL);
 			fprintf(progress_fp, "   Doing rxn %5d of %5d conformers.", counter, n_conf); fflush(progress_fp);
-			if (n_retry<100 && conf_rxn(i, j, prot, jjj)) {
+			if (n_retry<100 && conf_rxn(i, j, prot, jjj)){
 				remove("ARCDAT");
 				fprintf(progress_fp, "   Retry\n");
 				n_retry++;
@@ -554,132 +544,213 @@ int conf_energies(int kr, int kc, PROT prot)
 			}
 			else {
 				// RUN DELPHI CALCULATIONS
-				// center of grids is given in fort 27
-				fp = fopen("fort.27", "w");
-				fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
-						center.x,
-						center.y,
-						center.z);
-				fclose(fp);
-				
-				// This fort.13 is a binary file, to see what is file is, uncomment the block below
-				fp = fopen("fort.13", "w");
-				fwrite(ele_bound.unf, sizeof(UNF), ele_bound.n, fp);
-				fclose(fp);
-				
-				fp2 = fopen("apbs.pqr", "w");
-				if (write_pqr(fp2)) {
-					printf("   FATAL: Cannot write a pqr file in conf_energies()\n");
-					fclose(fp2);
-					return USERERR;
-				}
+				if (env.delphi_sys_call) {
+					printf("Using sys call \n");
+					// center of grids is given in fort 27
+					fp = fopen("fort.27", "w");
+					fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
+							center.x,
+							center.y,
+							center.z);
+					fclose(fp);
+					
+					// This fort.13 is a binary file, to see what is file is, uncomment the block below
+					fp = fopen("fort.13", "w");
+					fwrite(ele_bound.unf, sizeof(UNF), ele_bound.n, fp);
+					fclose(fp);
+					// Start while loop
+					n_retry = 0; /* reset delphi failure counter for this conformer */
+					notpassed = 1;
+					while (notpassed) {
 
-				n_retry = 0; /* reset delphi failure counter for this conformer */
-				//notpassed = 1;
-
-				/*
-				 * replace the loop of while (notpassed) line 581-730
-				 */
-				 
-				 
-				SMCCE* pmcce = new SMCCE;
-				pmcce->gsize         = env.grids_delphi;
-				pmcce->scale         = (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1);//env.grids_per_ang; 
-				pmcce->pdbfile       = "apbs.pqr";
-				pmcce->pdbformat     = 21; 
-				//pmcce->grids_per_ang = env.grids_per_ang;
-				pmcce->del_runs      = del_runs;
-				pmcce->n_retry       = n_retry;
-				pmcce->indi          = env.epsilon_prot;
-				pmcce->exdi          = env.epsilon_solv;
-				pmcce->ionrad        = env.ionrad;
-				pmcce->prbrad        = env.radius_probe;
-				pmcce->salt          = env.salt;
-				pmcce->bndcon        = 2;
-				pmcce->bAcent        = true;
-				pmcce->center[0]     = center.x;
-				pmcce->center[1]     = center.y;  
-				pmcce->center[2]     = center.z;
-				pmcce->phifile        = "run01.txt";
-				pmcce->frcfile        = "run01.frc";  
-				pmcce->uniqID.assign(prot.res[kr].conf[kc].uniqID);
-				
-				bool rt = conf_energies_delphi(pmcce);	
-				if (false == rt)
-				{
-				   delete pmcce;
-				   return USERERR;
-				}
-				
-				// Start here
-				/*
-				sprintf(fname, "run01.frc");
-			    if (!(fp = fopen(fname, "r"))) {
-				   printf("\n   WARNING: Delphi failed at focusing depth %d of %s, retry\n", 1, prot.res[kr].conf[kc].uniqID);
-				   n_retry++;
-				   remove("ARCDAT");
-				   del_err = 1;
-				   //continue;
-			    }
-			    counter = 0;
-			    // skip 12 lines 
-			    for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
-		  
-			    while (fgets(sbuff, sizeof(sbuff), fp)) {
-					if (strlen(sbuff)>39) {
-						 sscanf(sbuff+20, "%f %f", &phi, &fdummy);
-						 potentials[counter] = phi;
-                         printf("run01 in pw: %d %5.2f %5.2f\n",counter, potentials[counter], phi);
-						 counter++;
+						// Set up the first delphi run with dipolar boundary potentials 
+						fp = fopen("fort.10", "w");
+						fprintf(fp, "gsize=%d\n", env.grids_delphi);
+						fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1));
+						fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+						fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+						fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+						fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+						fprintf(fp, "prbrad=%.1f\n", env.radius_probe);
+						fprintf(fp, "salt=%.2f\n", env.salt);
+						fprintf(fp, "bndcon=2\n");
+						fprintf(fp, "center(777, 777, 0)\n");
+						fprintf(fp, "out(frc,file=\"run01.frc\")\n");
+						fprintf(fp, "out(phi,file=\"run01.phi\")\n");
+						fprintf(fp, "site(a,c,p)\n");
+						fprintf(fp, "energy(g,an,ag,sol)\n");
+						fclose(fp);
+						sprintf(sbuff, "%s>delphi%02d.log 2>/dev/null", env.delphi_exe, 1);
+						if (n_retry<2) {
+							system(sbuff);
+							//sprintf(sbuff, "grep -e scale -e fill delphi%02d.log", 1);
+							//system(sbuff);
+							//exit(-1);
+						}else if (n_retry>=2 && n_retry<100){
+							printf("   Trying moving the center on trial %d\n", n_retry);
+							fp = fopen("fort.27", "w");
+							fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
+									center.x + 0.1*((float) rand() / RAND_MAX - 0.5),
+									center.y + 0.1*((float) rand() / RAND_MAX - 0.5),
+									center.z + 0.1*((float) rand() / RAND_MAX - 0.5));
+							fclose(fp);
+							printf("   Trying changing scale on trial %d\n", n_retry);
+							system(sbuff);
+						} else {
+							printf("   FATAL: too many failed delphi runs (%d), quitting...\n", n_retry);
+							return USERERR;
+						}
+						for (i=1; i<del_runs; i++) {
+							fp = fopen("fort.10", "w");
+							fprintf(fp, "gsize=%d\n", env.grids_delphi);
+							fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1-i));
+							fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+							fprintf(fp, "in(phi,file=\"run%02d.phi\")\n", i);
+							fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+							fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+							fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+							fprintf(fp, "prbrad=%.1f\n", env.radius_probe);
+							fprintf(fp, "salt=%.2f\n", env.salt);
+							fprintf(fp, "bndcon=3\n");
+							fprintf(fp, "center(777, 777, 0)\n");
+							fprintf(fp, "out(frc,file=\"run%02d.frc\")\n", i+1);
+							fprintf(fp, "out(phi,file=\"run%02d.phi\")\n", i+1);
+							fprintf(fp, "site(a,c,p)\n");
+							fprintf(fp, "energy(g,an,ag,sol)\n");
+							fclose(fp);
+							sprintf(sbuff, "%s>delphi%02d.log 2>/dev/null", env.delphi_exe, i+1);
+							if (n_retry<100) {
+								system(sbuff);
+							}
+							else {
+								printf("   FATAL: too many failed delphi runs (%d), quitting...\n", n_retry);
+								return USERERR;
+							}
+						}
+						// Now collect and write the results 
+						// initialize the array with the first run 
+						sprintf(fname, "run01.frc");
+						if (!(fp = fopen(fname, "r"))) {
+							printf("\n   WARNING: Delphi failed at focusing depth %d of %s, retry\n", 1, prot.res[kr].conf[kc].uniqID);
+							n_retry++;
+							remove("ARCDAT");
+							del_err = 1;
+							continue;
+						}
+						counter = 0;
+						// skip 12 lines (header of the frc files)
+						for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+						while (fgets(sbuff, sizeof(sbuff), fp)) {
+							if (strlen(sbuff)>39) {
+								sscanf(sbuff+20, "%f %f", &phi, &fdummy);
+								potentials[counter] = phi;
+								counter++;
+							}
+						}
+						fclose(fp);
+						del_err = 0;
+						/* use the first non 0 value for each atom */
+						for (i=2; i<=del_runs; i++) {
+							sprintf(fname, "run%02d.frc", i);
+							if (!(fp = fopen(fname, "r"))) {
+								printf("\n   WARNING: Delphi failed at focusing depth %d of %s, retry\n", i, prot.res[kr].conf[kc].uniqID);
+								n_retry++;
+								remove("ARCDAT");
+								del_err = 1;
+								break;
+							}
+							counter = 0;
+							/* skip 12 lines */
+							for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+							while (fgets(sbuff, sizeof(sbuff), fp)) {
+								if (strlen(sbuff)>39) {
+									sscanf(sbuff+20, "%f %f", &phi, &fdummy);
+									if (fabs(phi)>0.0001) {
+										potentials[counter] = phi; 
+									} 
+									counter++;
+								}
+							}
+							fclose(fp);
+							del_err = 0;
+						}
+						if (del_err) notpassed = 1;
+						else notpassed = 0; /* so far so good */
 					}
-			    }
-			    fclose(fp);
-			    del_err = 0;
+					// End while loop
 
-			    // use the first non 0 value for each atom 
-			   for (i=2; i<=del_runs; i++) {
-				   sprintf(fname, "run%02d.frc", i);
-				   if (!(fp = fopen(fname, "r"))) {
-					 printf("\n   WARNING: Delphi failed at focusing depth %d of %s, retry\n", i, prot.res[kr].conf[kc].uniqID);
-					 n_retry++;
-					 remove("ARCDAT");
-					 del_err = 1;
-					 break;
-				   }
-				   counter = 0;
-			  
-				   // skip 12 lines 
-				   for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
-			  
-				   while (fgets(sbuff, sizeof(sbuff), fp)) {
-						if (strlen(sbuff)>39) {
-							sscanf(sbuff+20, "%f %f", &phi, &fdummy);
-                     	//printf("fdummy: %5.2f\n", fdummy);
-							if (fabs(phi)>0.0001) {
-                        potentials[counter] = phi; 
-                        printf("run02 in pw: %d %5.2f %5.2f\n",counter, potentials[counter], phi);
-                     } 
-							counter++;
-						 }
-				  }
-              
-				  fclose(fp);
-				  del_err = 0;
+					for (i=0; i<del_runs; i++) {
+						sprintf(sbuff, "rxn%02d.log", i+1);
+						remove(sbuff);
+						sprintf(sbuff, "run%02d.frc", i+1);
+						remove(sbuff);
+						sprintf(fname, "delphi%02d.log", i+1);
+						fp2 = fopen(fname, "r");
+						while (fgets(sbuff, sizeof(sbuff), fp2)) {
+							if (strstr(sbuff, "corrected reaction field energy:")) {
+								if (strstr(sbuff, "NaN")) rxn_corrected = 999.99;
+								else rxn_corrected = atof(sbuff+34)/KCAL2KT;
+								break;
+							}
+						}
+						fclose(fp2);
+					}
+					remove("ARCDAT");
+				}else{
+					printf("Using integrated delphi\n");
+					fp2 = fopen("apbs.pqr", "w");
+					if (write_pqr(fp2)) {
+						printf("   FATAL: Cannot write a pqr file in conf_energies()\n");
+						fclose(fp2);
+						return USERERR;
+					}
+										 
+					n_retry = 0; // reset delphi failure counter for this conformer 
+					//notpassed = 1;
+
+					SMCCE* pmcce = new SMCCE;
+					pmcce->gsize         = env.grids_delphi;
+					//pmcce->scale         = env.grids_per_ang;
+					pmcce->pdbfile       = "apbs.pqr";
+					pmcce->pdbformat     = 21; 
+					pmcce->del_runs      = del_runs;
+					pmcce->n_retry       = n_retry;
+					pmcce->indi          = env.epsilon_prot;
+					pmcce->exdi          = env.epsilon_solv;
+					pmcce->ionrad        = env.ionrad;
+					pmcce->prbrad        = env.radius_probe;
+					pmcce->salt          = env.salt;
+					pmcce->bndcon        = 2;
+					pmcce->bAcent        = true;
+					pmcce->center[0]     = center.x;
+					pmcce->center[1]     = center.y;  
+					pmcce->center[2]     = center.z;
+					//pmcce->phifile       = "pwrun01.phi";
+					pmcce->frcfile       = "pwrun01.frc";  
+
+					//pmcce->phifile_in    = "run01_in.phi";
+					pmcce->frcfile_in    = "run01_in.frc";
+					pmcce->uniqID.assign(prot.res[kr].conf[kc].uniqID);
+					
+					bool rt = conf_energies_delphi(pmcce);	
+					if (false == rt)
+					{
+					   delete pmcce;
+					   return USERERR;
+					}
+
+					counter = 0;
+					for (vector<delphi_real>::iterator it = pmcce->phiv.begin(); it != pmcce->phiv.end(); ++it)
+					{
+					    if (0.0001 < fabs(*it)){
+							potentials[counter] = *it;
+							//printf("*it: %f\n", *it);
+						}  
+					   counter++;
+					}
+					rxn_corrected = pmcce->ergs/KCAL2KT;
+					delete pmcce;
 				}
-				// End here
-				*/
-				counter = 0;
-				
-				for (vector<delphi_real>::iterator it = pmcce->phiv.begin(); it != pmcce->phiv.end(); ++it)
-				{
-				    if (0.0001 < fabs(*it)){
-						potentials[counter] = *it;
-						printf("*it: %f\n", *it);
-					}  
-				   counter++;
-				}
-				rxn_corrected = pmcce->ergs/KCAL2KT;
-				delete pmcce;
 			}
 		}
 		
@@ -708,9 +779,8 @@ int conf_energies(int kr, int kc, PROT prot)
 			pairwise_ele[counter] = 0.0;
 			for (k=0; k<prot.res[i].conf[j].n_atom; k++) {
 				if (!prot.res[i].conf[j].atom[k].on) continue;
-				pairwise_ele[counter] += prot.res[i].conf[j].atom[k].crg
-						*(potentials[prot.res[i].conf[j].atom[k].serial]);
-			printf("potentials: %d %d %s %s %5.2f %5.2f\n", counter, prot.res[i].conf[j].atom[k].serial,prot.res[i].conf[j].confName ,prot.res[i].conf[j].atom[k].name, prot.res[i].conf[j].atom[k].crg, potentials[prot.res[i].conf[j].atom[k].serial]);
+				pairwise_ele[counter] += prot.res[i].conf[j].atom[k].crg*(potentials[prot.res[i].conf[j].atom[k].serial]);
+				//printf("potentials: %d %d %s %s %5.2f %5.2f\n", counter, prot.res[i].conf[j].atom[k].serial,prot.res[i].conf[j].confName ,prot.res[i].conf[j].atom[k].name, prot.res[i].conf[j].atom[k].crg, potentials[prot.res[i].conf[j].atom[k].serial]);
 			}
 			pairwise_ele[counter] /= KCAL2KT;
 			counter++;
@@ -1002,7 +1072,6 @@ int conf_rxn(int kr, int kc, PROT prot, int jjj)
 	char sbuff[MAXCHAR_LINE];
 	char rxnmulti[MAXCHAR_LINE];
 	float rxn[100]; /*rxn at focusing runs*/
-	float rxn_min;
 	VECTOR center;
 	float weight;
 	char uniqID[MAXCHAR_LINE];
@@ -1012,8 +1081,10 @@ int conf_rxn(int kr, int kc, PROT prot, int jjj)
 	float vdw1,vdwt, torsion, ele0;
 	float val,rxn_protein, rxn_solvent, grid_dim;  /*rxn energies in apbs calculations*/
 	float *potentials_rxn = NULL; /*collects potentials of the reference solvation run in apbs  */
-
+	float rxn_min, rxn_res_min;
+	float * rxn_pointer;
 	char FileName[80];
+
 	if (!(potentials = (float *) calloc(sizeof(float), ele_bound.n))) {
 		printf("   ERROR: memory error in conf_energies()\n");
 		return USERERR;
@@ -1227,139 +1298,407 @@ int conf_rxn(int kr, int kc, PROT prot, int jjj)
 				rxn_min = rxn_protein - rxn_solvent;
 			}
 			else {
-				/*RUN DELPHI CALCIULATIONS*/
-				fp = fopen("fort.13", "w");
-				fwrite(ele_bound.unf, sizeof(UNF), ele_bound.n, fp);
-				fclose(fp);
-				sprintf(FileName,"%s%02d.27","fort",jjj);
-				fp = fopen(FileName, "w");
-				fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
-						center.x,
-						center.y,
-						center.z);
-				fclose(fp);
-
-				/*
-				 * replace the loop of while (notpassed) line 581-730
-				 */
-				fp2 = fopen("apbs.pqr", "w");
-				if (write_pqr(fp2)) {
-					printf("   FATAL: Cannot write a pqr file in conf_energies()\n");
-					fclose(fp2);
-					return USERERR;
-				}
-
-				SMCCE* pmcce = new SMCCE;
-				pmcce->gsize         = env.grids_delphi;
-				pmcce->scale         = (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1);//env.grids_per_ang;
-				//pmcce->grids_per_ang = env.grids_per_ang;
-				pmcce->del_runs        = del_runs;
-				pmcce->n_retry       = n_retry;
-				pmcce->pdbfile       = "apbs.pqr";
-				pmcce->pdbformat     = 21; // pqr
-				pmcce->indi          = env.epsilon_prot;
-				pmcce->exdi          = env.epsilon_solv;
-				pmcce->ionrad        = env.ionrad;
-				pmcce->prbrad        = env.radius_probe;
-				pmcce->salt          = env.salt;
-				pmcce->bndcon        = 2;
-				pmcce->bAcent        = true;
-				pmcce->center[0]     = center.x; 
-				pmcce->center[1]     = center.y;  
-				pmcce->center[2]     = center.z;
-				pmcce->phifile        = "run01.txt";
-				pmcce->frcfile        = "run01.frc";  
-
-				pmcce->uniqID.assign(prot.res[kr].conf[kc].uniqID);
-				bool rt = conf_rxn_delphi(pmcce,rxn,jjj);
-				if (false == rt)
-				{
-				   delete pmcce;
-				   return USERERR;
-				}
-
-				// Start here
-				/*
-				sprintf(fname, "run01.frc");
-				if (!(fp = fopen(fname, "r"))) {
-				   printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", 1, prot.res[kr].conf[kc].uniqID);
-				   remove("ARCDAT");
-				   del_err = 1;
-				   return USERERR;
-				}
-				// skip 12 lines 
-				for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
-				counter = 0;
-				while (fgets(sbuff, sizeof(sbuff), fp)) {
-				   if (strlen(sbuff)>39) {
-				  	sscanf(sbuff+20, "%f %f", &phi, &fdummy);
-				  	potentials[counter] = phi;
-	           		printf("phi 3 in rxn: %5.2f\n", phi);
-				  	counter++;
-				    }
-				}
-				fclose(fp);
-				del_err = 0;
-
-				// use the first non 0 value for each atom 
-				for (i=2; i<=del_runs; i++) {
-				    sprintf(fname, "run%02d.frc", i);
-				    if (!(fp = fopen(fname, "r"))) {
-						printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", i, prot.res[kr].conf[kc].uniqID);
+				//RUN DELPHI CALCIULATIONS
+				if (env.delphi_sys_call){
+					fp = fopen("fort.13", "w");
+					fwrite(ele_bound.unf, sizeof(UNF), ele_bound.n, fp);
+					fclose(fp);
+					fp = fopen("fort.27", "w");
+					fprintf(fp, "ATOM  %5d  C   CEN  %04d    %8.3f%8.3f%8.3f\n", 1, 1,
+							center.x,
+							center.y,
+							center.z);
+					fclose(fp);
+					fp = fopen("fort.10", "w");
+					fprintf(fp, "gsize=%d\n", env.grids_delphi);
+					fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1));
+					fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+					fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+					fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+					fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+					fprintf(fp, "prbrad=%.1f\n", env.radius_probe);
+					fprintf(fp, "salt=%.2f\n", env.salt);
+					fprintf(fp, "bndcon=2\n");
+					fprintf(fp, "center(777, 777, 0)\n");
+					fprintf(fp, "out(frc,file=\"run01.frc\")\n");
+					fprintf(fp, "out(phi,file=\"run01.phi\")\n");
+					fprintf(fp, "site(a,c,p)\n");
+					fprintf(fp, "energy(g,an,ag,sol)\n");
+					fclose(fp);
+					sprintf(sbuff, "%s>rxn01.log", env.delphi_exe);
+					system(sbuff);
+					for (i=1; i<del_runs; i++) {
+						fp = fopen("fort.10", "w");
+						fprintf(fp, "gsize=%d\n", env.grids_delphi);
+						fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1-i));
+						fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+						fprintf(fp, "in(phi,file=\"run%02d.phi\")\n", i);
+						fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+						fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+						fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+						fprintf(fp, "prbrad=%.1f\n", env.radius_probe);
+						fprintf(fp, "salt=%.2f\n", env.salt);
+						fprintf(fp, "bndcon=3\n");
+						fprintf(fp, "center(777, 777, 0)\n");
+						fprintf(fp, "out(frc,file=\"run%02d.frc\")\n", i+1);
+						fprintf(fp, "out(phi,file=\"run%02d.phi\")\n", i+1);
+						fprintf(fp, "site(a,c,p)\n");
+						fprintf(fp, "energy(g,an,ag,sol)\n");
+						fclose(fp);
+						sprintf(sbuff, "%s>rxn%02d.log", env.delphi_exe, i+1);
+						system(sbuff);
+					}
+					/* Now collect and write the results */
+					/* initialize the array with the first run */
+					sprintf(fname, "run01.frc");
+					if (!(fp = fopen(fname, "r"))) {
+						printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", 1, prot.res[kr].conf[kc].uniqID);
 						remove("ARCDAT");
 						del_err = 1;
-						break;
-				    }
-				    counter = 0;
-		  
-				    // skip 12 lines 
-				    for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
-			  
-				    while (fgets(sbuff, sizeof(sbuff), fp)) {
-					  	if (strlen(sbuff)>39) {
+						return USERERR;
+					}
+					/* skip 12 lines */
+					for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+					counter = 0;
+					while (fgets(sbuff, sizeof(sbuff), fp)) {
+						if (strlen(sbuff)>39) {
 							sscanf(sbuff+20, "%f %f", &phi, &fdummy);
-							if (fabs(phi)>0.0001) {potentials[counter] = phi; printf("phi 4 in rxn: %5.2f\n", phi);}
+							potentials[counter] = phi;
+							counter++;
+						}
+					}
+					fclose(fp);
+					del_err = 0;
+					/* use the first non 0 value for each atom */
+					for (i=2; i<=del_runs; i++) {
+						sprintf(fname, "run%02d.frc", i);
+						if (!(fp = fopen(fname, "r"))) {
+							printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", i, prot.res[kr].conf[kc].uniqID);
+							remove("ARCDAT");
+							del_err = 1;
+							break;
+						}
+						counter = 0;
+						/* skip 12 lines */
+						for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+						while (fgets(sbuff, sizeof(sbuff), fp)) {
+							if (strlen(sbuff)>39) {
+								sscanf(sbuff+20, "%f %f", &phi, &fdummy);
+								if (fabs(phi)>0.0001) potentials[counter] = phi;
 								counter++;
-					  		}
-				    	}
-				    	fclose(fp);
-				    	del_err = 0;
-				}
-
-			    // End here
-			    */
-			    
-
-				/* Now collect and write the results */
-				counter = 0;
-				for (vector<delphi_real>::iterator it = pmcce->phiv.begin(); it != pmcce->phiv.end(); ++it)
-				{
-					if (0.0001 < fabs(*it)){ 
-						potentials[counter] = *it;
+							}
+						}
+						fclose(fp);
+						del_err = 0;
 					}
-				    counter++;
-				}
-
-				/*RXN ENERGY*/
-				if (!strcmp(env.rxn_method,"surface"))
-				{
-					for (i=0; i<del_runs; i++)
-					{
-						
-						rxn[i] = rxn[i]/KCAL2KT;
+					if (del_err) return USERERR;
+					/*RXN ENERGY*/
+					if (!strcmp(env.rxn_method,"surface") || !strcmp(env.rxn_method,"ntsurface")) {
+						for (i=0; i<del_runs; i++) {
+							/*read rxn energy from delphi runs*/ 
+							sprintf(fname, "rxn%02d.log", i+1);
+							if (!(fp2 = fopen(fname, "r"))) {
+								printf("\n   WARNING: Delphi(rxn) failed at focusing %d of %s\n", i, prot.res[kr].conf[kc].uniqID);
+								return USERERR;
+							}
+							while (fgets(sbuff, sizeof(sbuff), fp2)) {
+								if (strstr(sbuff, "corrected reaction field energy:")) {
+									if (strstr(sbuff, "NaN")) rxn[i] = 999.99;
+									else rxn[i] = atof(sbuff+34)/KCAL2KT;
+									break;
+								}
+							}
+							fclose(fp2);
+							/* clean records of the last run - maybe we don't need this bit*/
+							sprintf(sbuff, "rxn%02d.log", i+1);
+							remove(sbuff);
+							sprintf(sbuff, "run%02d.frc", i+1);
+							remove(sbuff);
+						}
+						/*report the most negative from the last three runs*/
+						if (del_runs < 3) i=0;
+						else i = del_runs-3;
+						rxn_min=rxn[i];
+						for (; i<del_runs; i++) {
+							if (rxn_min > rxn[i]) rxn_min = rxn[i];
+						}
+						remove("ARCDAT");
+					}else{
+						/*RUN DELPHI AGAIN TO CALCULATE RXN*/
+						counter = 0;
+						counter = define_boundary_res(prot, kr, kc);
+						fp = fopen("fort.13", "w");
+						fwrite(unf_res, sizeof(UNF), counter, fp);
+						fclose(fp);
+						/*write site potentials in the file*/
+						fp = fopen("site.15", "w");
+						for (i=0; i<counter; i++) {
+						fprintf(fp, "%30s%8.3f%8.3f%8.3f\n", head_res[i],
+								unf_res[i].x,
+								unf_res[i].y,
+								unf_res[i].z);
+						}
+						fclose(fp);
+						/*don't need fort.27 again since the center is the same*/
+						fp = fopen("fort.10", "w");
+						fprintf(fp, "gsize=%d\n", env.grids_delphi);
+						fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1));
+						fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+						fprintf(fp, "in(frc,file=\"site.15\")\n");
+						fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+						fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+						fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+						fprintf(fp, "salt=%.2f\n", env.salt);
+						fprintf(fp, "bndcon=2\n");
+						fprintf(fp, "center(777, 777, 0)\n");
+						fprintf(fp, "out(frc,file=\"run01.frc\")\n");
+						fprintf(fp, "out(phi,file=\"run01.phi\")\n");
+						fprintf(fp, "site(a,c,p)\n");
+						fprintf(fp, "energy(g,an,ag,sol)\n");
+						fclose(fp);
+						sprintf(sbuff, "%s>rxn01.log", env.delphi_exe);
+						system(sbuff);
+						for (i=1; i<del_runs; i++) {
+							fp = fopen("fort.10", "w");
+							fprintf(fp, "gsize=%d\n", env.grids_delphi);
+							fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1-i));
+							fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+							fprintf(fp, "in(frc,file=\"site.15\")\n");
+							fprintf(fp, "in(phi,file=\"run%02d.phi\")\n", i);
+							fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+							fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+							fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+							fprintf(fp, "salt=%.2f\n", env.salt);
+							fprintf(fp, "bndcon=3\n");
+							fprintf(fp, "center(777, 777, 0)\n");
+							fprintf(fp, "out(frc,file=\"run%02d.frc\")\n", i+1);
+							fprintf(fp, "out(phi,file=\"run%02d.phi\")\n", i+1);
+							fprintf(fp, "site(a,c,p)\n");
+							fprintf(fp, "energy(g,an,ag,sol)\n");
+							fclose(fp);
+							sprintf(sbuff, "%s>rxn%02d.log", env.delphi_exe, i+1);
+							system(sbuff);
+						}
+						/* Now collect and write the results */
+						/* initialize the array with the first run */
+						sprintf(fname, "run01.frc");
+						if (!(fp = fopen(fname, "r"))) {
+							printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", 1, prot.res[kr].conf[kc].uniqID);
+							remove("ARCDAT");
+							del_err = 1;
+							return USERERR;
+						}
+						/* skip 12 lines */
+						for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+						counter = 0;
+						while (fgets(sbuff, sizeof(sbuff), fp)) {
+							if (strlen(sbuff)>39) {
+								sscanf(sbuff+20, "%f %f", &phi, &fdummy);
+								potentials_rxn[counter] = phi;
+								counter++;
+							}
+						}
+						fclose(fp);
+						del_err = 0;
+						/* use the first non 0 value for each atom */
+						for (i=2; i<=del_runs; i++) {
+							sprintf(fname, "run%02d.frc", i);
+							if (!(fp = fopen(fname, "r"))) {
+								printf("\n   WARNING: Delphi failed at focusing depth %d of %s\n", i, prot.res[kr].conf[kc].uniqID);
+								remove("ARCDAT");
+								del_err = 1;
+								break;
+							}
+							counter = 0;
+							/* skip 12 lines */
+							for (j=0; j<12; j++) fgets(sbuff, sizeof(sbuff), fp);
+							while (fgets(sbuff, sizeof(sbuff), fp)) {
+								if (strlen(sbuff)>39) {
+									sscanf(sbuff+20, "%f %f", &phi, &fdummy);
+									if (fabs(phi)>0.0001) potentials_rxn[counter] = phi;
+									counter++;
+								}
+							}
+							fclose(fp);
+							del_err = 0;
+						}
+						if (del_err) return USERERR;
+						remove("ARCDAT");
+						rxn_protein = 0.0;
+						rxn_solvent = 0.0;
+						/*rxn using self energies*/
+						for (k=0; k<prot.res[kr].conf[kc].n_atom; k++) {
+							if (!prot.res[kr].conf[kc].atom[k].on) continue;
+							rxn_protein += prot.res[kr].conf[kc].atom[k].crg * potentials[prot.res[kr].conf[kc].atom[k].serial] / (2.0*KCAL2KT);
+							rxn_solvent += prot.res[kr].conf[kc].atom[k].crg * potentials_rxn[k + prot.res[kr].conf[0].n_atom] / (2.0*KCAL2KT);
+						}
+						/*accounts for effects of backbone in self rxn energy*/
+						//for (k=0; k<prot.res[kr].conf[0].n_atom; k++) {
+						//   if (!prot.res[kr].conf[0].atom[k].on) continue;
+						//   rxn_solvent += prot.res[kr].conf[0].atom[k].crg * potentials_rxn[k] / (2.0*KCAL2KT);
+						//}
+						/*final delta rxn energy of the conformer*/
+						rxn_min = rxn_protein - rxn_solvent;	
 					}
-
+					/*if (!strcmp(env.rxn_method,"ntsurface")){
+						//IF THE CONFORMER TYPE ALREADY HAS AN ENTRY IN THE HASHTABLE, USE THAT VALUE
+						if (0 == 1) {//rxn_pointer = (float*)g_hash_table_lookup(rxn_per_conf, prot.res[kr].conf[kc].confName)) {
+							rxn_res_min = *rxn_pointer;
+						}else{ // OTHERWISE RUN DELPHI AGAIN TO CALCULATE RXN AS PER THE TPL FILES
+							counter = 0;
+							counter = define_boundary_res(prot, kr, kc);
+							fp = fopen("fort.13", "w");
+							fwrite(unf_res, sizeof(UNF), counter, fp);
+							fclose(fp);
+							// write site potentials in the file
+							fp = fopen("site.15", "w");
+							for (i=0; i<counter; i++) {
+								fprintf(fp, "%30s%8.3f%8.3f%8.3f\n", head_res[i],
+										unf_res[i].x,
+										unf_res[i].y,
+										unf_res[i].z);
+							}
+							fclose(fp);
+							//don't need fort.27 again since the center is the same
+							fp = fopen("fort.10", "w");
+							fprintf(fp, "gsize=%d\n", env.grids_delphi);
+							fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1));
+							fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+							fprintf(fp, "in(frc,file=\"site.15\")\n");
+							fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+							fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+							fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+							fprintf(fp, "salt=%.2f\n", env.salt);
+							fprintf(fp, "bndcon=2\n");
+							fprintf(fp, "center(777, 777, 0)\n");
+							fprintf(fp, "out(frc,file=\"run01.frc\")\n");
+							fprintf(fp, "out(phi,file=\"run01.phi\")\n");
+							fprintf(fp, "site(a,c,p)\n");
+							fprintf(fp, "energy(g,an,ag,sol)\n");
+							fclose(fp);
+							sprintf(sbuff, "%s>rxn01.log", env.delphi_exe);
+							system(sbuff);
+							for (i=1; i<del_runs; i++) {
+								fp = fopen("fort.10", "w");
+								fprintf(fp, "gsize=%d\n", env.grids_delphi);
+								fprintf(fp, "scale=%.6f\n", (env.grids_per_ang+0.01*(float)n_retry)/pow(2,del_runs-1-i));
+								fprintf(fp, "in(unpdb,file=\"fort.13\")\n");
+								fprintf(fp, "in(frc,file=\"site.15\")\n");
+								fprintf(fp, "in(phi,file=\"run%02d.phi\")\n", i);
+								fprintf(fp, "indi=%.1f\n", env.epsilon_prot);
+								fprintf(fp, "exdi=%.1f\n", env.epsilon_solv);
+								fprintf(fp, "ionrad=%.1f\n", env.ionrad);
+								fprintf(fp, "salt=%.2f\n", env.salt);
+								fprintf(fp, "bndcon=3\n");
+								fprintf(fp, "center(777, 777, 0)\n");
+								fprintf(fp, "out(frc,file=\"run%02d.frc\")\n", i+1);
+								fprintf(fp, "out(phi,file=\"run%02d.phi\")\n", i+1);
+								fprintf(fp, "site(a,c,p)\n");
+								fprintf(fp, "energy(g,an,ag,sol)\n");
+								fclose(fp);
+								sprintf(sbuff, "%s>rxn%02d.log", env.delphi_exe, i+1);
+								system(sbuff);
+							}
+							for (i=0; i<del_runs; i++) {
+								//read rxn energy from delphi runs
+								sprintf(fname, "rxn%02d.log", i+1);
+								if (!(fp2 = fopen(fname, "r"))) {
+									printf("\n   WARNING: Delphi(rxn) failed at focusing %d of %s\n", i, prot.res[kr].conf[kc].uniqID);
+									return USERERR;
+								}	  
+								while (fgets(sbuff, sizeof(sbuff), fp2)) {
+									if (strstr(sbuff, "corrected reaction field energy:")) {
+										if (strstr(sbuff, "NaN")) rxn[i] = 999.99;
+										else rxn[i] = atof(sbuff+34)/KCAL2KT;
+										break;
+									}
+								}
+								fclose(fp2);
+								// clean records of the last run - maybe we don't need this bit
+								sprintf(sbuff, "rxn%02d.log", i+1);
+								remove(sbuff);
+								sprintf(sbuff, "run%02d.frc", i+1);
+								remove(sbuff);
+							}
+							//report the most negative from the last three runs
+							if (del_runs < 3) i=0;
+							else i = del_runs-3;
+							rxn_res_min=rxn[i];
+							for (; i<del_runs; i++) {
+								if (rxn_res_min > rxn[i]) rxn_res_min = rxn[i];
+							}
+							//g_hash_table_insert(rxn_per_conf, prot.res[kr].conf[kc].confName, &rxn_res_min);
+							remove("ARCDAT");
+							printf("%c%3s %c%04d%c%03d rxn_res: %6.3f confName: %s\n",
+									prot.res[kr].conf[kc].altLoc,
+									prot.res[kr].resName,
+									prot.res[kr].chainID,
+									prot.res[kr].resSeq,
+									prot.res[kr].iCode,
+									prot.res[kr].conf[kc].iConf,
+									rxn_res_min,
+									prot.res[kr].conf[kc].confName);
+							fflush(stdout);	
+						}
+						rxn_min = rxn_min - rxn_res_min;
+					}*/
+				}else{
+					fp2 = fopen("apbs.pqr", "w");
+					if (write_pqr(fp2)) {
+						printf("   FATAL: Cannot write a pqr file in conf_energies()\n");
+						fclose(fp2);
+						return USERERR;
+					}
+					SMCCE* pmcce = new SMCCE;
+					pmcce->gsize         = env.grids_delphi;
+					//pmcce->scale         = env.grids_per_ang;
+					pmcce->del_runs      = del_runs;
+					pmcce->n_retry       = n_retry;
+					pmcce->pdbfile       = "apbs.pqr";
+					pmcce->pdbformat     = 21; // pqr
+					pmcce->indi          = env.epsilon_prot;
+					pmcce->exdi          = env.epsilon_solv;
+					pmcce->ionrad        = env.ionrad;
+					pmcce->prbrad        = env.radius_probe;
+					pmcce->salt          = env.salt;
+					pmcce->bndcon        = 2;
+					pmcce->bAcent        = true;
+					pmcce->center[0]     = center.x; 
+					pmcce->center[1]     = center.y;  
+					pmcce->center[2]     = center.z;
+					pmcce->phifile       = "run01.phi";
+					pmcce->frcfile       = "run01.frc";
+					pmcce->phifile_in    = "run01_in.phi";
+					pmcce->frcfile_in    = "run01_in.frc";
+					pmcce->uniqID.assign(prot.res[kr].conf[kc].uniqID);
+					bool rt = conf_rxn_delphi(pmcce,rxn,jjj);
+					if (false == rt){
+						delete pmcce;
+						return USERERR;
+					}
+					// Now collect and write the results 
+					counter = 0;
+					for (vector<delphi_real>::iterator it = pmcce->phiv.begin(); it != pmcce->phiv.end(); ++it){
+						if (0.0001 < fabs(*it)){ 
+							potentials[counter] = *it;
+						}
+						counter++;
+					}
+					//RXN ENERGY
+					if (!strcmp(env.rxn_method,"surface")){
+						for (i=0; i<del_runs; i++){		
+							rxn[i] = rxn[i]/KCAL2KT;
+						}
 					// report the most negative from the last three runs
-					if (del_runs < 3) i=0;
-					else i = del_runs-3;
-
-					rxn_min=rxn[i];
-					for (; i<del_runs; i++) {
-						if (rxn_min > rxn[i]) {rxn_min = rxn[i];}
+						if (del_runs < 3) i=0;
+						else i = del_runs-3;
+						rxn_min=rxn[i];
+						for (; i<del_runs; i++) {
+							if (rxn_min > rxn[i]) {rxn_min = rxn[i];}
+						}
 					}
+					delete pmcce;
 				}
-
-				delete pmcce;
 			}
 		}
 	}

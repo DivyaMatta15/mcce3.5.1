@@ -448,7 +448,7 @@ int postrun_load_pairwise()
     EMATRIX ematrix;
 
     ematrix.n = 0;  
-    if (load_energies(&ematrix, ".",0)<0) {
+    if (load_energies(&ematrix, ".", 0)<0) {
         printf("   File %s not found\n", ENERGY_TABLE);
         return USERERR;
     }
@@ -487,7 +487,7 @@ int postrun_load_pairwise_vdw()
     EMATRIX ematrix;
 
     ematrix.n = 0;  
-    if (load_energies(&ematrix, ".",0)<0) {
+    if (load_energies(&ematrix, ".", 0)<0) {
         printf("   File %s not found\n", ENERGY_TABLE);
         return USERERR;
     }
@@ -674,29 +674,30 @@ int postrun_fitit()
     memset(crg, 0, post_run_Nx * sizeof(float));
     memset(protons, 0, post_run_Nx * sizeof(float));
     memset(electrons, 0, post_run_Nx * sizeof(float));
+    /*
     if ((post_run_fp = fopen("sum_crg.out", "w")) == NULL) {
         printf("   Can not open \"sum_crg.out\" to write, abort ...\n");
         return USERERR;
     }
-    if (env.titr_type == 'p') {   /* pH titration */
+    if (env.titr_type == 'p') {   // pH titration 
         fprintf(post_run_fp, "  pH      ");
     }
-    else {      /* Eh titration assumed */
+    else {      // Eh titration assumed
         fprintf(post_run_fp, "  Eh      ");
     }
     for (i=0; i<post_run_Nx; i++) fprintf(post_run_fp, " %5d", (int) post_run_xp[i]);
     fprintf(post_run_fp, "\n");
 
     for(i=0; i<N_res; i++) {
-        printf("post_run_shead: %s\n", post_run_shead[i]);
+        //printf("post_run_shead: %s\n", post_run_shead[i]);
         fprintf(post_run_fp, "%s", post_run_shead[i]);
         strncpy(sbuff, post_run_shead[i], 4); sbuff[4] = '1'; sbuff[5] = '\0';
         if (param_get( "PROTON", sbuff, "", &n_protons)) n_protons = 0;
         if (param_get( "ELECTRON", sbuff, "", &n_electrons)) n_electrons = 0;
-        /* n_crg = n_protons-n_electrons; */
+        // n_crg = n_protons-n_electrons; 
         n_crg = n_protons-n_electrons; 
         
-        /* number of protons on ground conformer type */
+        // number of protons on ground conformer type 
         strncpy(sbuff, post_run_shead[i], 3); sbuff[3] = '0'; sbuff[4] = '1'; sbuff[5] = '\0';
         if (param_get( "PROTON", sbuff, "", &n_protons_grnd)) n_protons_grnd = 0;
         if (param_get( "ELECTRON", sbuff, "", &n_electrons_grnd)) n_electrons_grnd = 0;
@@ -738,7 +739,7 @@ int postrun_fitit()
     }
     fprintf(post_run_fp, "\n");
 
-    fclose(post_run_fp);
+    fclose(post_run_fp);*/
 
     /*<<< Loop over y values >>>*/
     if (!(post_run_fp = fopen(CURVE_FITTING, "w"))) {
@@ -1158,7 +1159,7 @@ int postrun_load_pairwise_fround3()
     EMATRIX ematrix;
 
     ematrix.n = 0;  
-    if (load_energies(&ematrix, ".",0)<0) {
+    if (load_energies(&ematrix, ".", 0)<0) {
         printf("   File %s not found\n", ENERGY_TABLE);
         return USERERR;
     }

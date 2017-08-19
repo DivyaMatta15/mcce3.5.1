@@ -165,9 +165,9 @@ bool CDelphiFastSOR::isFocusBndy(delphi_real *** phimap)
 #ifdef MCCE
 
     phimap_pre_v = pmcce->phimap;
-    fScale1      = pmcce->scale;
-    fgBoxCenter1 = pmcce->oldmid;
-    iGrid1       = pmcce->igrid;
+    fScale1      = pmcce->scale1;
+    fgBoxCenter1 = pmcce->oldmid1;
+    iGrid1       = pmcce->igrid1;
 
     phimap_pre   = pdc->getKey_Ptr<delphi_real>("phimap_pre",iGrid1,iGrid1,iGrid1);
 
