@@ -90,6 +90,20 @@ int rotamers()
    printf("   Done\n\n"); fflush(stdout);
    fclose(fp);
 
+   /* write out ms_gold --by Cai*/
+   if (env.ms_gold_out) {
+       printf("   Writing ms_gold ...\n");
+       fflush(stdout);
+       fp = fopen("ms_gold", "w");
+       write_ms_gold(fp, prot);
+       fclose(fp);
+       printf("   Done. ms_gold is created.\n\n", i); fflush(stdout);
+   }
+   else {
+      printf("   NOT output ms_gold file.\n");
+   }
+
+
    /* load CONFLIST1 */
    load_headlst(prot);
 

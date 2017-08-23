@@ -8,10 +8,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <zlib.h>
-//#include "mcce.h"
-extern "C" {
 #include "mcce.h"
-}
+//extern "C" {
+//#include "mcce.h"
+//}
 
 #include <cstdlib>
 #include <cstring>

@@ -559,6 +559,7 @@ typedef struct {
     char do_energies;
     char do_monte;
     char do_postmcce;
+    char do_analysis;  /* Cai */
     
     char minimize_size;
     
@@ -633,6 +634,7 @@ typedef struct {
     float prune_rmsd;
     float prune_ele;
     float prune_vdw;
+    char  ms_gold_out;  //Cai
     
     float sas2vdw;
     
@@ -678,6 +680,8 @@ typedef struct {
     float monte_converge;
     int   monte_do_energy;
     int   monte_print_nonzero;
+
+    char  monte_ms;          /* MicroState Monte Carlo flag ----Cai */
 
     int anneal_temp_start; // changed from float to int on Apr 2017 by Salah
     int anneal_nstep;      // changed from float to int on Apr 2017 by Salah
@@ -761,6 +765,9 @@ typedef struct {
     int   mfe_flag;
     float  mfe_point;
 
+    int   ms_out;             /*used for monte_ms   by Cai */
+    char  always_scale_vdw;   /* used for monte_ms  by Cai */
+
     int do_corrections; /*boundary corrections switch*/
     
     int ignore_input_h; /*toggle on to disregard all hydrogens in input structure*/
@@ -777,6 +784,14 @@ typedef struct {
     int   delphi_start;
     int   delphi_end;
 
+    // Step 6 variables---Cai
+    char get_hbond_matrix;
+    float hbond_upper_limit;
+    float hbond_lower_limit;
+    float hbond_ang_cutoff;
+    char get_hbond_network;
+
+
 } ENV;
 
 extern ENV env;
@@ -786,6 +801,7 @@ extern ENV env;
 ATOM   pdbline2atom(char *line);
 PROT   load_pdb(FILE *fp);
 int    write_pdb(FILE *stream, PROT prot);
+int    write_ms_gold(FILE *stream, PROT prot);              /* add write_ms_gold.c by Cai*/
 
 int    ins_conf(RES *res, int ins, int n_atom);
 int    del_conf(RES *res, int pos);
@@ -897,5 +913,6 @@ int energies();
 int energies2();
 int monte();
 int monte2();
+int monte3();   /* monte_ms ---Cai */
 int postrun();
-
+int analysis(); /* step 6 ---Cai */
