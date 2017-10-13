@@ -1,5 +1,4 @@
 ################################################################################
-# Automatically-generated file. Do not edit!
 ################################################################################
 
 # Add inputs and outputs from these tool invocations to the build variables 
@@ -56,6 +55,7 @@ CPP_SRCS += \
 ../src/mcce/mem_position.cpp \
 ../src/mcce/monte.cpp \
 ../src/mcce/monte2.cpp \
+../src/mcce/analysis.cpp \
 ../src/mcce/mxm4.cpp \
 ../src/mcce/new_prot.cpp \
 ../src/mcce/pdbline2atom.cpp \
@@ -142,6 +142,8 @@ OBJS += \
 ./src/mcce/mem_position.o \
 ./src/mcce/monte.o \
 ./src/mcce/monte2.o \
+./src/mcce/write_ms_gold.o \
+./src/mcce/analysis.o \
 ./src/mcce/mxm4.o \
 ./src/mcce/new_prot.o \
 ./src/mcce/pdbline2atom.o \
@@ -228,6 +230,8 @@ CPP_DEPS += \
 ./src/mcce/mem_position.d \
 ./src/mcce/monte.d \
 ./src/mcce/monte2.d \
+./src/mcce/write_ms_gold.d \
+./src/mcce/analysis.d \
 ./src/mcce/mxm4.d \
 ./src/mcce/new_prot.d \
 ./src/mcce/pdbline2atom.d \

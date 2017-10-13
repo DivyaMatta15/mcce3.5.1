@@ -61,6 +61,19 @@ int main(int argc, char *argv[])
          if (monte2()) {db_close(); return USERERR;}
          else printf("Step 4 Done.\n\n");
       }
+     /* if (env.monte_adv_opt) {               // if monte_adv_opt is ture, run Yifan Monte Carlo         
+         printf("Step 4. Yifan Monte Carlo Sampling\n"); fflush(stdout);
+         if (monte2()) {db_close(); return USERERR;}
+         else printf("Step 4 Done.\n\n");
+      }      else if (env.monte_ms) {               // If monte_ms is true, run MicroState Monte Carlo Sampling
+         printf("Step 4. MicroState Monte Carlo Sampling\n"); fflush(stdout);
+         if (monte3()) {db_close(); return USERERR;}
+         else printf("Step 4 Done.\n\n");
+      }      else{                                  // If all flags are false, run standard Monte Carlo        
+         printf("Step 4. Standard Monte Carlo Sampling\n"); fflush(stdout);
+         if (monte()) {db_close(); return USERERR;}
+         else printf("Step 4 Done.\n\n");
+      } */
    }
    else printf("Not doing \"Step 4. Monte Carlo Sampling\"\n\n");
    
@@ -70,6 +83,15 @@ int main(int argc, char *argv[])
       else printf("Step 5 Done.\n\n");
    }
    else printf("Not doing \"Step 5. Post Monte Carlo\"\n\n");
+
+   /* Do step 6. hydrogen bond analysis---Cai */
+   if (env.do_analysis){
+      printf("Step 6. Hydrogen Bond Network Analysis\n"); fflush(stdout);
+      if (analysis()) {db_close(); return USERERR;}
+      else printf("Step 6 Done.\n\n");
+   }
+   else printf("Not doing \"Step 6. Hydrogen Bond Network Analysis\"\n\n");
+
 
    db_close();
    return 0;
@@ -114,6 +136,8 @@ void welcome()
    printf("Oct  2016, Added step 5 that creates pK.out and sum_crg.out.\n");
    printf("Jan  2017, Added DelPhi potential map.\n\n");
    printf("Mar  2017, Added DelPhi dielectric map.\n\n");
+   printf("July 2017, Added monte3.c to output MicroState at step 4.\n\n");
+   printf("July 2017, Added step 6 to do Hydrogen Bond Network analysis.\n\n");
    fflush(stdout);
 	
 	// Added by Jessica on Nov. 2015
