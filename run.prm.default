@@ -1,4 +1,4 @@
-MCCE CONFIGURATION FILE (default 09/15/2004)
+MCCE CONFIGURATION FILE (default July 2016)
    This file must have name "run.prm" in the working directory. The first
    field of the line is the value, and last string with parenthesis is
    the key.
@@ -21,6 +21,7 @@ f        step 1: pre-run, pdb-> mcce pdb                    (DO_PREMCCE)
 f        step 2: make rotatmers                             (DO_ROTAMERS)
 f        step 3: do energy calculations                     (DO_ENERGY)
 f        step 4: monte carlo sampling                       (DO_MONTE)
+f        step 5: post monte carlo (pka)                     (DO_POSTMCCE)
 ==============================================================================
 
 0        sidechain optimization: 0=mcce, 1=P.Comte's GA,    (SIDECHAIN_OPT)
@@ -32,8 +33,8 @@ surface  self/surface, APBS always use rxn self energy      (RXN_METHOD)
 Less modified entries
 ------------------------------------------------------------------------------
 4.0      Protein dielectric constant for DelPhi             (EPSILON_PROT)
-/home/mcce/mcce2.5.1/extra.tpl                              (EXTRA)
-/home/mcce/mcce2.5.1/name.txt MCCE renaming rule.           (RENAME_RULES)
+/home/mcce/mcce3.5/extra.tpl                              (EXTRA)
+/home/mcce/mcce3.5/name.txt MCCE renaming rule.           (RENAME_RULES)
 
 ph       "ph" for pH titration, "eh" for eh titration       (TITR_TYPE)
 0.0      Initial pH                                         (TITR_PH0)
@@ -48,14 +49,14 @@ ph       "ph" for pH titration, "eh" for eh titration       (TITR_TYPE)
 #############################################################################
 MODIFYING FOLLOWING ENTRIES REQUIRE ADVANCED KNOWLEDGE:
 -----------------------------------------------------------------------------
-/home/mcce/mcce2.5.1                                        (MCCE_HOME)
+/home/mcce/mcce3.5                                          (MCCE_HOME)
 t       Minimize output files                               (MINIMIZE_SIZE)
-t       Print trace file                                    (DO_TRACE)
+f       Print trace file                                    (DO_TRACE)
 
 Options specific to each step:
 
 step 1:
-t        Label terminal residues?                           (TERMINALS)
+f        Label terminal residues?                           (TERMINALS)
 2.0      distance limit of reporting clashes                (CLASH_DISTANCE)
 0.05     cut off water if % SAS exceeds this number         (H2O_SASCUTOFF)
 
@@ -111,10 +112,13 @@ step 3:
 1.4      Radius of the probe                                (RADIUS_PROBE)
 2.0      Ion radius                                         (IONRAD)
 0.15     Salt                                               (SALT)
-/home/mcce/mcce2.5.1/bin/delphi DelPhi executable           (DELPHI_EXE)
-/home/mcce/mcce2.5.1/bin/apbs APBS executable               (APBS_EXE)
+/home/mcce/mcce3.5/bin/delphi DelPhi executable             (DELPHI_EXE)
+/home/mcce/mcce3.5/bin/apbs APBS executable                 (APBS_EXE)
+/scratch                                                    (PBE_FOLDER)
 
 step 4:
+t        Using Yifan's monte carlo                          (MONTE_ADV_OPT)
+t        Output Microstate                                  (MONTE_MS)
 5.0      Big pairwise threshold to make big list            (BIG_PAIRWISE)
 -1       Random seed, -1 uses time as random seed           (MONTE_SEED)
 298.15   Temperature                                        (MONTE_T)
@@ -127,13 +131,23 @@ step 4:
 50000    Trace energy each MONTE_TRACE steps, 0 no trace    (MONTE_TRACE)
 1000000  Maximum microstates for analytical solution        (NSTATE_MAX)
 t        Do entropy correction                              (MONTE_TSX)
+
+
+
+Step 5:
+f        Display DelPhi potential map                       (DISPLAY_POTENTIAL_MAP)
+f        Only the backbone                                  (ONLY_BACKBONE) 
+1       Specify titration point                            (COLUMN_NUMBER)
+/home/mcce/mcce3.5/bin/delphicpp_release DelPhi executable for potential map              (DELPHI_POTENTIAL_EXE)
+f        Using mfe pK.out                                   (MFE_PKA)
 f        Specify mfe point, f=pKa/Em                        (MFE_POINT)
 -1.0     MFE cutoff(Kcal), default 0.5                      (MFE_CUTOFF)
+
 
 # Advanced options:
 1         pbe    start conformer number, 0 based            (PBE_START)
 99999     pbe    end conformer number, self included        (PBE_END)
-6.0      dielectric constant for Coulomb's law              (EPSILON_COULOMB)
+4.0      dielectric constant for Coulomb's law              (EPSILON_COULOMB)
 
 #APBS
 65   number of grids                                         (GRIDS_APBS)
@@ -143,27 +157,3 @@ sdh   type of PBE boundary condition: zero/sdh/mdh/focus      (BOUND_COND_APBS)
 
 ##############################################################################
 
-###########PASCAL COMTE GENETIC ALGORITHM PARAMETERS FOR STEP 2################
--1       Random seed value, use -1 for random value         (GA_SEED)
-6000     Population size of each GA: use up to 20k          (GA_POP_SIZE)
-0.1      Mutation rate for each GA                          (GA_MUTATION_RATE)
-0.0      Migration rate for each GA                         (GA_MIGRATION_RATE)
-0.9      Crossover rate for each GA                         (GA_CROSSOVER_RATE)
-30       Max nb. of rnd cut points for crossover            (GA_RANDOM_CUT_POINTS)
-
-10       Nb. of GA rounds without convergence check         (GA_PHASE)
-5        Nb. of GA rounds with convergence check            (GA_SHIFT)
-
-15.0     Distribution Center                                (GA_DIST_CENTER)
-2.0      solutions within EPS*DIST.CENTER in bucket         (GA_DIST_CENTER_EPS)
-
-400000   Max nb. protein conformations in final bucket      (GA_MAX_BUCKET_POP)
-5.0      Local Residue lowest occupied energy cutoff        (GA_RESIDUE_MIN_ENERGY_CUTOFF)
-0.0      Occupied conformers in MIN_ENRG_CUTOFF are deleted (GA_OCCUPANCY_CUTOFF)
-0.7      Pop. %  for dE calculation                         (GA_DELTA_E)
-
--1       Disabled when -1                                   (GA_SPHERE_FOCUS_RESID)
-20.0     Up to how many Angstorms to include residues       (GA_SPHERE_PROBE_RADIUS)
-
-0        GA output format: 0 display screen, 1 file         (GA_OUTPUT)
-##############################################################################
